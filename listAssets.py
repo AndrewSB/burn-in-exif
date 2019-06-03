@@ -35,8 +35,6 @@ def process(file_path, exifDictionary):
     else:
         DOESNT_HAVE_EXIF.append(file_path)
 
-    print("has", len(HAS_EXIF), "not", len(DOESNT_HAVE_EXIF))
-
 
 def exifOnFile(file_path):
     with exiftool.ExifTool() as et:
@@ -55,15 +53,11 @@ def exifOnDir(list_of_files):
                 process(d['SourceFile'], d)
 
 
-def main(argv):
-    assert(len(argv) == 1)
-    print('searching in', argv[0])
+if __name__ == "__main__":   
+    assert(len(sys.argv) == 1)
+    print('searching in', sys.argv[0])
 
-    walk_dir = argv[0]
+    walk_dir = sys.argv[0]
     recursiveWalk(walk_dir, lambda x: None, lambda list_of_files_in_dir: exifOnDir(list_of_files_in_dir))
     print("with exif date:", len(HAS_EXIF))
     print("without exif date:", len(DOESNT_HAVE_EXIF))
-
-
-if __name__ == "__main__":
-    main(sys.argv[1:])
