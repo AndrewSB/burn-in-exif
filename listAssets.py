@@ -29,12 +29,10 @@ def process(file_path, exifDictionary):
     d = exifDictionary
     assert(file_path == d['SourceFile'])
 
-    if "EXIF:DateTimeOriginal" in d or "EXIF:CreateDate" in d:
-        HAS_EXIF.append(file_path)
-        assert(d['EXIF:DateTimeOriginal'] == d['EXIF:CreateDate'])
-    else:
+    if get_exif_create_date(d) == False:
         DOESNT_HAVE_EXIF.append(file_path)
-
+    else:
+        HAS_EXIF.append(file_path)
 
 def exifOnFile(file_path):
     with exiftool.ExifTool() as et:
@@ -52,12 +50,38 @@ def exifOnDir(list_of_files):
             for d in metadatas:
                 process(d['SourceFile'], d)
 
+def import_exif_file(file_path):
+    with exiftool.ExifTool() as et:
+        d = et.get_metadata(file_path)
+        print(file_path, get_exif_create_date(d), d)
+
+def explain_missing_exif(file_path):
+    with exiftool.ExifTool() as et:
+        d = et.get_metadata(file_path)
+        print(file_path, d)
+
+def get_exif_create_date(exif_dict):
+    d = exif_dict
+    if "EXIF:DateTimeOriginal" in d or "EXIF:CreateDate" in d:
+        assert(d['EXIF:DateTimeOriginal'] == d['EXIF:CreateDate'])
+        assert('QuickTime:MediaCreateDate' not in d)
+        return d['EXIF:DateTimeOriginal']
+
+    if 'QuickTime:MediaCreateDate' in d:
+        assert(d['QuickTime:CreateDate'] == d['QuickTime:MediaCreateDate'])
+        return d['QuickTime:MediaCreateDate']
+    
+    return False
 
 if __name__ == "__main__":   
-    assert(len(sys.argv) == 1)
-    print('searching in', sys.argv[0])
+    assert(len(sys.argv) == 2) # as in python3 listAssets.py filepath
+    walk_dir = sys.argv[1]
+    print('searching in', walk_dir)
 
-    walk_dir = sys.argv[0]
     recursiveWalk(walk_dir, lambda x: None, lambda list_of_files_in_dir: exifOnDir(list_of_files_in_dir))
     print("with exif date:", len(HAS_EXIF))
+    for path in HAS_EXIF:
+        import_exif_file(path)
     print("without exif date:", len(DOESNT_HAVE_EXIF))
+    # for path in DOESNT_HAVE_EXIF:
+    #     explain_missing_exif(path)
