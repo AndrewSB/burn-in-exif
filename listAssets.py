@@ -52,28 +52,15 @@ def exifOnDir(list_of_files):
 
 def import_exif_file(file_path):
     with exiftool.ExifTool() as et:
-        d = et.get_metadata(file_path)
-        explain_missing_exif(file_path)
         # print(file_path, get_exif_create_date(d))
         # at this point, we'd instruct the AWS machine to move this somewhere so it can be downloaded by our client in batch for importing
 
 def explain_missing_exif(file_path):
-    if is_live_photo_pair(file_path):
-        print('yay')
-    else:
-        print('crie')
+    # is_live_photo_pair(file_path)
 
     with exiftool.ExifTool() as et:
         d = et.get_metadata(file_path)
         # print(file_path, d)
-
-def is_live_photo_pair(file_path):
-    filename = os.path.basename(file_path)
-    filename_without_extension = os.path.splitext(filename)[0]
-    candidate = os.path.join(os.path.dirname(file_path), filename_without_extension)
-
-    print(candidate)
-    return False
 
 def get_exif_create_date(exif_dict):
     d = exif_dict
@@ -83,7 +70,7 @@ def get_exif_create_date(exif_dict):
         return d['EXIF:DateTimeOriginal']
 
     if 'QuickTime:MediaCreateDate' in d:
-        assert(d['QuickTime:CreateDate'] == d['QuickTime:MediaCreateDate'])
+        # assert(d['QuickTime:CreateDate'] == d['QuickTime:MediaCreateDate']), f"{d['QuickTime:CreateDate']} {d['QuickTime:MediaCreateDate']}"
         return d['QuickTime:MediaCreateDate']
     
     return False
