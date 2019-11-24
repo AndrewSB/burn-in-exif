@@ -51,7 +51,8 @@ def exifOnDir(list_of_files):
                 process(d['SourceFile'], d)
 
 def import_exif_file(file_path):
-    with exiftool.ExifTool() as et:
+    print('hi')
+    # with exiftool.ExifTool() as et:
         # print(file_path, get_exif_create_date(d))
         # at this point, we'd instruct the AWS machine to move this somewhere so it can be downloaded by our client in batch for importing
 
