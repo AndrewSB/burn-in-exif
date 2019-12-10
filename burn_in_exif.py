@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from enum import Enum
 import csv
-from exif import batchExif, get_exif_create_date
+from exif import batchExif, get_exif_create_date, best_guess_date
 from common import getListOfFiles
 
 parser = ArgumentParser(description='🔥 in that metadata', epilog='so that metadata can\'t 🔥 you') # how poetic. can you tell i've never written a Python CLI before?
@@ -26,7 +26,7 @@ if args.command == 'scan_dir':
 
     dateless_files, dated_files = [], []
     for i, file_path in enumerate(files):
-        if get_exif_create_date(exif_data[i]) is False:
+        if get_exif_create_date(exif_data[i]) is None:
             dateless_files.append(file_path)
         else:
             dated_files.append(file_path)
@@ -34,10 +34,18 @@ if args.command == 'scan_dir':
 
     with open(args.dated_csv, 'w') as dated, open(args.dateless_csv, 'w') as dateless:
         print(f"writing to {args.dated_csv} and {args.dateless_csv} respectively")
-        csv.writer(dated, delimiter='\n').writerows([dated_files])
-        csv.writer(dateless, delimiter='\n').writerows([dateless_files])
+        csv.writer(dated).writerows([[file] for file in dated_files])
+        csv.writer(dateless, delimiter='\n').writerows([[file] for file in dateless_files])
 
 elif args.command == 'guess_dates':
     print(f"guessing dates from {args.csv}")
+    to_write = []
+    with open(args.csv, 'r') as input_csv:
+        for row in csv.reader(input_csv, delimiter='\n'):
+            to_write.append((row[0], best_guess_date(row[0])))
+    
+    with open(args.output_csv, 'w') as output_csv:
+        csv.writer(output_csv).writerows(to_write)
+
 else:
     AssertionError('wut')
