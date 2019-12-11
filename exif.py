@@ -17,6 +17,14 @@ def batchExif(list_of_files):
             return
         return et.get_metadata_batch(list_of_files)
 
+batch_write_et = exiftool.ExifTool()
+def write_date(date_string, file_path):
+    with exiftool.ExifTool() as et:
+        et.execute(
+            '-AllDates={}'.format(date_string).encode('utf-8'),
+            file_path.encode('utf-8')
+        )
+
 """
 Anecdotally, it looks like Photos treats the date metadata of different types distinctly.
 My own experience is that EXIF:{DateTimeOriginal, CreateDate, ModifyDate} are ignored for PNG files... Problematic, I know

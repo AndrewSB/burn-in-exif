@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from enum import Enum
 import csv
-from exif import batchExif, get_exif_create_date, best_guess_date
+from exif import batchExif, get_exif_create_date, best_guess_date, write_date
 from common import getListOfFiles
 
 parser = ArgumentParser(description='🔥 in that metadata', epilog='so that metadata can\'t 🔥 you') # how poetic. can you tell i've never written a Python CLI before?
@@ -15,6 +15,9 @@ scan_parser.add_argument('--dateless-csv', type=str, default='dateless.csv', hel
 process_dateless_parser = subparsers.add_parser('guess_dates', help='Go through CSV and get best guess metadata for each file')
 process_dateless_parser.add_argument('csv', type=str, help='The CSV')
 process_dateless_parser.add_argument('--output-csv', type=str, default='best_guess_dates.csv', help='the output CSV')
+
+write_dates_parser = subparsers.add_parser('write_dates', help='Take a CSV of (file_path, timestamp) and write to those file\'s metadata')
+write_dates_parser.add_argument('csv', type=str, help='CSV of (file_path, timestamp)')
 
 args = parser.parse_args()
 
@@ -46,6 +49,15 @@ elif args.command == 'guess_dates':
     
     with open(args.output_csv, 'w') as output_csv:
         csv.writer(output_csv).writerows(to_write)
+
+elif args.command == 'write_dates':
+    with open(args.csv, 'r') as input_csv:
+        print(f"preparing to write to {sum(1 for line in input_csv)} files")
+
+    with open(args.csv, 'r') as input_csv:
+        for row in csv.reader(input_csv):
+            print(f"{row[0]} <= {row[1]}")
+            write_date(row[0], row[1])
 
 else:
     AssertionError('wut')
