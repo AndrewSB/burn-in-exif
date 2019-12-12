@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 from enum import Enum
 import csv
+from operator import itemgetter
 from exif import batchExif, get_exif_create_date, best_guess_date, write_date
 from common import getListOfFiles
 
@@ -18,6 +19,10 @@ process_dateless_parser.add_argument('--output-csv', type=str, default='best_gue
 
 write_dates_parser = subparsers.add_parser('write_dates', help='Take a CSV of (file_path, timestamp) and write to those file\'s metadata')
 write_dates_parser.add_argument('csv', type=str, help='CSV of (file_path, timestamp)')
+
+sort_csv_parser = subparsers.add_parser('sort_csv', help='Takes a CSV with one column per line and writes out a version with rows sorted alphabetically')
+sort_csv_parser.add_argument('csv', type=str, help='CSV to sort')
+sort_csv_parser.add_argument('--output', type=str, default='sorted.csv', help='where to write the data')
 
 args = parser.parse_args()
 
@@ -45,7 +50,9 @@ elif args.command == 'guess_dates':
     to_write = []
     with open(args.csv, 'r') as input_csv:
         for row in csv.reader(input_csv, delimiter='\n'):
-            to_write.append((row[0], best_guess_date(row[0])))
+            guess = best_guess_date(row[0], to_write)
+            print(f"{row[0]} - {guess}")
+            to_write.append((row[0], guess))
     
     with open(args.output_csv, 'w') as output_csv:
         csv.writer(output_csv).writerows(to_write)
@@ -58,6 +65,13 @@ elif args.command == 'write_dates':
         for row in csv.reader(input_csv):
             print(f"{row[0]} <= {row[1]}")
             write_date(row[0], row[1])
+
+elif args.command == 'sort_csv':
+    with open(args.csv, 'r') as input_csv:
+        data = [line for line in csv.reader(input_csv)]
+        with open(args.output, 'w') as output_csv:
+            data.sort()
+            csv.writer(output_csv).writerows(data)
 
 else:
     AssertionError('wut')
