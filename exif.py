@@ -2,6 +2,7 @@ import exiftool
 import pathlib
 from common import getListOfFiles, safe_list_subscript
 import datetime
+import mac_tag
 
 SOURCE_FILE_TAG = 'SourceFile'
 FOLDER_DATE_FORMAT_STRING = '%B %d, %Y' # reads "April 1, 2015"
@@ -17,8 +18,11 @@ def batchExif(list_of_files):
             return
         return et.get_metadata_batch(list_of_files)
 
-batch_write_et = exiftool.ExifTool()
-def write_date(date_string, file_path):
+def write_date(row):
+    file_path = row[0]
+    date_string = row[1]
+    print(f"{file_path} <= {date_string}")
+    mac_tag.add('Pink', file_path)
     with exiftool.ExifTool() as et:
         et.execute(
             '-AllDates={}'.format(date_string).encode('utf-8'),

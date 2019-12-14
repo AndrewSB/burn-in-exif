@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 from enum import Enum
 import csv
 from datetime import date
-from operator import itemgetter
+from multiprocessing import Pool
 from exif import batchExif, get_exif_create_date, best_guess_date, write_date, DATE_FORMAT_STRING
 from common import getListOfFiles
 
@@ -61,12 +61,10 @@ elif args.command == 'guess_dates':
 
 elif args.command == 'write_dates':
     with open(args.csv, 'r') as input_csv:
-        print(f"preparing to write to {sum(1 for line in input_csv)} files")
-
-    with open(args.csv, 'r') as input_csv:
-        for row in csv.reader(input_csv):
-            print(f"{row[0]} <= {row[1]}")
-            write_date(row[0], row[1])
+        rows = list(csv.reader(input_csv))
+        print(f"preparing to write to {len(rows)} files")
+        with Pool(processes=100) as pool:
+            pool.map(write_date, rows)
 
 elif args.command == 'sort_csv':
     with open(args.csv, 'r') as input_csv:
