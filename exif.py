@@ -1,6 +1,6 @@
 import exiftool
 import pathlib
-from common import getListOfFiles
+from common import getListOfFiles, safe_list_subscript
 import datetime
 
 SOURCE_FILE_TAG = 'SourceFile'
@@ -39,9 +39,10 @@ def _get_exif_create_date(exif_dict):
     mov_tags = ['QuickTime:' + suffix for suffix in ['CreateDate', 'ModifyDate', 'MediaCreateDate', 'MediaModifyDate', 'TrackCreateDate', 'TrackModifyDate']]
 
     if any([t in exif_dict for t in jpeg_tags]):
-        assert(all([t in exif_dict for t in jpeg_tags])), exif_dict
         assert (exif_dict[SOURCE_FILE_TAG].lower().endswith('jpeg') or exif_dict[SOURCE_FILE_TAG].lower().endswith('jpg')), exif_dict[SOURCE_FILE_TAG]
-        return exif_dict[jpeg_tags[0]]
+        value = exif_dict.get(jpeg_tags[0], exif_dict.get(jpeg_tags[1], exif_dict.get(jpeg_tags[2])))
+        assert(value is not None), exif_dict
+        return value
 
     if png_tag in exif_dict:
         assert exif_dict[SOURCE_FILE_TAG].lower().endswith('png'), exif_dict[SOURCE_FILE_TAG]
@@ -59,8 +60,11 @@ def get_exif_create_date(exif_dict):
     if as_string is None:
         return None
     else:
-        return datetime.datetime.strptime(as_string, DATE_FORMAT_STRING)
-    
+        try:
+            return datetime.datetime.strptime(as_string, DATE_FORMAT_STRING)
+        except:
+            print('would have crashed processing', exif_dict[SOURCE_FILE_TAG], as_string) # a few values were stored as 0000:00:00 00:00:00, which is invalid. They're caught here
+            return None
 
 """
 Cases
@@ -69,21 +73,26 @@ Cases
     c: IF the next exists, return next-1sec
     d: General fallback: Grab the date from the parent folder name, return noon on that day
 """
-def best_guess_date(file_path):
+def best_guess_date(file_path, pending_writes):
     parent_dir_name = pathlib.Path(file_path).parts[-2]
     files_in_dir = sorted(getListOfFiles(pathlib.Path(file_path).parent))
     exif_of_files_in_dir = batchExif(files_in_dir)
-    
     cur_file_index = files_in_dir.index(file_path)
     
     prev_date = None
-    if cur_file_index != 0:
+    maybe_prev_date_string = pending_writes.get(safe_list_subscript(files_in_dir, cur_file_index - 1))
+    if maybe_prev_date_string is not None:
+        prev_date = datetime.datetime.strptime(maybe_prev_date_string, DATE_FORMAT_STRING)
+    if prev_date is None and safe_list_subscript(exif_of_files_in_dir, cur_file_index - 1) is not None:
         prev_date = get_exif_create_date(exif_of_files_in_dir[cur_file_index - 1])
 
     next_date = None
-    if cur_file_index != (len(files_in_dir) - 1):
+    maybe_next_date_string = pending_writes.get(safe_list_subscript(files_in_dir, cur_file_index + 1))
+    if maybe_next_date_string is not None:
+        datetime.datetime.strptime(maybe_next_date_string, DATE_FORMAT_STRING)
+    if next_date is None and safe_list_subscript(exif_of_files_in_dir, cur_file_index + 1) is not None:
         next_date = get_exif_create_date(exif_of_files_in_dir[cur_file_index + 1])
-
+    
     if prev_date is not None and next_date is not None: # a
         return prev_date + abs((prev_date - next_date) / 2)
     elif prev_date is not None: # b

@@ -1,8 +1,9 @@
 from argparse import ArgumentParser
 from enum import Enum
 import csv
+from datetime import date
 from operator import itemgetter
-from exif import batchExif, get_exif_create_date, best_guess_date, write_date
+from exif import batchExif, get_exif_create_date, best_guess_date, write_date, DATE_FORMAT_STRING
 from common import getListOfFiles
 
 parser = ArgumentParser(description='🔥 in that metadata', epilog='so that metadata can\'t 🔥 you') # how poetic. can you tell i've never written a Python CLI before?
@@ -47,15 +48,16 @@ if args.command == 'scan_dir':
 
 elif args.command == 'guess_dates':
     print(f"guessing dates from {args.csv}")
-    to_write = []
+    to_write = {}
     with open(args.csv, 'r') as input_csv:
         for row in csv.reader(input_csv, delimiter='\n'):
             guess = best_guess_date(row[0], to_write)
-            print(f"{row[0]} - {guess}")
-            to_write.append((row[0], guess))
+            iso_6709_guess = date.strftime(guess, DATE_FORMAT_STRING)
+            print(f"{row[0]} - {iso_6709_guess}")
+            to_write[row[0]] = iso_6709_guess
     
     with open(args.output_csv, 'w') as output_csv:
-        csv.writer(output_csv).writerows(to_write)
+        csv.writer(output_csv).writerows([[key, to_write[key]] for key in to_write])
 
 elif args.command == 'write_dates':
     with open(args.csv, 'r') as input_csv:

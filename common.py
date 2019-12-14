@@ -21,6 +21,12 @@ def getListOfFiles(dirName):
                 
     return allFiles      
 
+def safe_list_subscript(list, idx, default=None):
+    try:
+        return list[idx]
+    except IndexError:
+        return default
+
 # a/b/c/d => c
 def parent_dir_name(file_path):
     print('NYI')
