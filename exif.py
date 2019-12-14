@@ -22,6 +22,7 @@ def write_date(date_string, file_path):
     with exiftool.ExifTool() as et:
         et.execute(
             '-AllDates={}'.format(date_string).encode('utf-8'),
+            '-IPTC:Keywords=guessed_date'.encode('utf-8'),
             file_path.encode('utf-8')
         )
 
