@@ -1,6 +1,8 @@
 from argparse import ArgumentParser
 from enum import Enum
 import csv
+import shutil
+import os
 from datetime import date
 from multiprocessing import Pool
 from exif import batchExif, get_exif_create_date, best_guess_date, write_date, DATE_FORMAT_STRING
@@ -24,6 +26,10 @@ write_dates_parser.add_argument('csv', type=str, help='CSV of (file_path, timest
 sort_csv_parser = subparsers.add_parser('sort_csv', help='Takes a CSV with one column per line and writes out a version with rows sorted alphabetically')
 sort_csv_parser.add_argument('csv', type=str, help='CSV to sort')
 sort_csv_parser.add_argument('--output', type=str, default='sorted.csv', help='where to write the data')
+
+move_files = subparsers.add_parser('move_files_from_csv', help='Moves a list of files from a CSV to a specified directory')
+move_files.add_argument('csv', type=str, help='the list of files to move')
+move_files.add_argument('target_dir', type=str, help='directory to move the list of files to')
 
 args = parser.parse_args()
 
@@ -63,7 +69,7 @@ elif args.command == 'write_dates':
     with open(args.csv, 'r') as input_csv:
         rows = list(csv.reader(input_csv))
         print(f"preparing to write to {len(rows)} files")
-        with Pool(processes=100) as pool:
+        with Pool(processes=20) as pool:
             pool.map(write_date, rows)
 
 elif args.command == 'sort_csv':
@@ -72,6 +78,12 @@ elif args.command == 'sort_csv':
         with open(args.output, 'w') as output_csv:
             data.sort()
             csv.writer(output_csv).writerows(data)
+
+elif args.command == 'move_files_from_csv':
+    with open(args.csv, 'r') as input_csv:
+        for line in csv.reader(input_csv):
+            shutil.move(line[0], os.path.join(args.target_dir, os.path.basename(line[0])))
+            print(line[0], ' -> ', f"{os.path.join(args.target_dir, os.path.basename(line[0]))}")
 
 else:
     AssertionError('wut')
