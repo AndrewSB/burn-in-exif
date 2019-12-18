@@ -7,6 +7,10 @@ import mac_tag
 SOURCE_FILE_TAG = 'SourceFile'
 FOLDER_DATE_FORMAT_STRING = '%B %d, %Y' # reads "April 1, 2015"
 DATE_FORMAT_STRING = '%Y:%m:%d %H:%M:%S' # reads "2015:04:01 08:50:15"
+    
+jpeg_tags = ['EXIF:DateTimeOriginal', 'EXIF:CreateDate', 'EXIF:ModifyDate']
+png_tag = 'XMP:DateCreated'
+mov_tags = ['QuickTime:CreateDate', 'QuickTime:ModifyDate'] + ['Track1:' + suffix for suffix in ['MediaCreateDate', 'MediaModifyDate', 'TrackCreateDate', 'TrackModifyDate']]
 
 def exifOnFile(file_path):
     with exiftool.ExifTool() as et:
@@ -25,7 +29,39 @@ def write_date(row):
     mac_tag.add('Pink', file_path)
     with exiftool.ExifTool() as et:
         et.execute(
+            '-overwrite_original'.encode('utf-8'),
             '-AllDates={}'.format(date_string).encode('utf-8'),
+            '-IPTC:Keywords=guessed_date'.encode('utf-8'),
+            file_path.encode('utf-8')
+        )
+
+def fallback_write_date_xmp(row):
+    file_path = row[0]
+    date_string = row[1]
+    print(f"{file_path} <= {date_string}")
+    with exiftool.ExifTool() as et:
+        et.execute(
+            '-overwrite_original'.encode('utf-8'),
+            '-{}={}'.format(png_tag, date_string).encode('utf-8'),
+            '-IPTC:Keywords=guessed_date'.encode('utf-8'),
+            file_path.encode('utf-8')
+        )
+
+"""
+    warning, execute the following in bash before running this:
+    cat <<<%Image::ExifTool::UserDefined::Shortcuts = (
+   MyTimeStamps => ['QuickTime:CreateDate', 'QuickTime:ModifyDate', 'Track1:MediaModifyDate', 'Track1:MediaCreateDate', 'Track1:TrackModifyDate', 'Track1:TrackCreateDate', 'Track2:MediaModifyDate', 'Track2:MediaCreateDate', 'Track2:TrackModifyDate', 'Track2:TrackCreateDate']
+);<<<EOF > ~/.ExifTool_config
+"""
+def fallback_write_date_mov(row):
+    file_path = row[0]
+    date_string = row[1]
+    print(f"{file_path} <= {date_string}")
+    with exiftool.ExifTool() as et:
+        exif_args = [f"'-{tag}={row[1]}'".encode('utf-8') for tag in mov_tags]
+        et.execute(
+            '-overwrite_original'.encode('utf-8'),
+            '-{}={}'.format(png_tag, date_string).encode('utf-8'),
             '-IPTC:Keywords=guessed_date'.encode('utf-8'),
             file_path.encode('utf-8')
         )
@@ -39,10 +75,6 @@ PNG files use XMP:DateCreated, and don't look like they store time zone data... 
 MOV/mp4 files use QuickTime:{MediaCreateDate, MediaModifyDate, TrackCreateDate, TrackModifyDate, CreateDate, ModifyDate} in the same format as the JPEG tags do, and then also store a composite in  QuickTime:{CreationDate, ContentCreateDate} with the time zone (2014:06:04 16:22:29-04:00)
 """
 def _get_exif_create_date(exif_dict):
-    jpeg_tags = ['EXIF:DateTimeOriginal', 'EXIF:CreateDate', 'EXIF:ModifyDate']
-    png_tag = 'XMP:DateCreated'
-    mov_tags = ['QuickTime:' + suffix for suffix in ['CreateDate', 'ModifyDate', 'MediaCreateDate', 'MediaModifyDate', 'TrackCreateDate', 'TrackModifyDate']]
-
     if any([t in exif_dict for t in jpeg_tags]):
         assert (exif_dict[SOURCE_FILE_TAG].lower().endswith('jpeg') or exif_dict[SOURCE_FILE_TAG].lower().endswith('jpg')), exif_dict[SOURCE_FILE_TAG]
         value = exif_dict.get(jpeg_tags[0], exif_dict.get(jpeg_tags[1], exif_dict.get(jpeg_tags[2])))
