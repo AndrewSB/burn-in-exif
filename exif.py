@@ -3,14 +3,19 @@ import pathlib
 from common import getListOfFiles, safe_list_subscript
 import datetime
 import mac_tag
+import subprocess
 
 SOURCE_FILE_TAG = 'SourceFile'
 FOLDER_DATE_FORMAT_STRING = '%B %d, %Y' # reads "April 1, 2015"
 DATE_FORMAT_STRING = '%Y:%m:%d %H:%M:%S' # reads "2015:04:01 08:50:15"
-    
+TIF_DATE_FORMAT_STRING = '%Y:%m:%d' # reads "2015:04:01"
+TIF_TIME_FORMAT_STRING = '%H:%M:%S%z' # reads "04:15:43". Concat a "-07:00" onto the end to match the expected spec
+
 jpeg_tags = ['EXIF:DateTimeOriginal', 'EXIF:CreateDate', 'EXIF:ModifyDate']
 png_tag = 'XMP:DateCreated'
-mov_tags = ['QuickTime:CreateDate', 'QuickTime:ModifyDate'] + ['Track1:' + suffix for suffix in ['MediaCreateDate', 'MediaModifyDate', 'TrackCreateDate', 'TrackModifyDate']]
+tif_time_tag = 'IPTC:TimeCreated'
+tif_date_tag = 'IPTC:DateCreated'
+mov_tags = ['QuickTime:CreateDate', 'QuickTime:ModifyDate', 'QuickTime:MediaCreateDate', 'QuickTime:MediaModifyDate'] + ['Track1:' + suffix for suffix in ['MediaCreateDate', 'MediaModifyDate', 'TrackCreateDate', 'TrackModifyDate']]
 
 def exifOnFile(file_path):
     with exiftool.ExifTool() as et:
@@ -25,46 +30,49 @@ def batchExif(list_of_files):
 def write_date(row):
     file_path = row[0]
     date_string = row[1]
+    date_string_with_ca_timezone = date_string + '-07:00'
+    file_extension_specific_flags = []
+    low = file_path.lower()
     print(f"{file_path} <= {date_string}")
+
     mac_tag.add('Pink', file_path)
-    with exiftool.ExifTool() as et:
-        et.execute(
-            '-overwrite_original'.encode('utf-8'),
-            '-AllDates={}'.format(date_string).encode('utf-8'),
-            '-IPTC:Keywords=guessed_date'.encode('utf-8'),
-            file_path.encode('utf-8')
-        )
 
-def fallback_write_date_xmp(row):
-    file_path = row[0]
-    date_string = row[1]
-    print(f"{file_path} <= {date_string}")
-    with exiftool.ExifTool() as et:
-        et.execute(
-            '-overwrite_original'.encode('utf-8'),
-            '-{}={}'.format(png_tag, date_string).encode('utf-8'),
-            '-IPTC:Keywords=guessed_date'.encode('utf-8'),
-            file_path.encode('utf-8')
-        )
+    failures = []
 
-"""
-    warning, execute the following in bash before running this:
-    cat <<<%Image::ExifTool::UserDefined::Shortcuts = (
-   MyTimeStamps => ['QuickTime:CreateDate', 'QuickTime:ModifyDate', 'Track1:MediaModifyDate', 'Track1:MediaCreateDate', 'Track1:TrackModifyDate', 'Track1:TrackCreateDate', 'Track2:MediaModifyDate', 'Track2:MediaCreateDate', 'Track2:TrackModifyDate', 'Track2:TrackCreateDate']
-);<<<EOF > ~/.ExifTool_config
-"""
-def fallback_write_date_mov(row):
-    file_path = row[0]
-    date_string = row[1]
-    print(f"{file_path} <= {date_string}")
+    # special processing for videos -- the et flags are much longer, pyexiftool kept complaining with parsing/formatting errors. just using subprocess instead
+    if low.endswith('mp4') or low.endswith('mov'):
+        retcode = subprocess.call(['exiftool', '-overwrite_original', '-m', *[u'-%s=%s' % (tag, date_string) for tag in mov_tags], '-QuickTime:Keywords=guessed_date', file_path])
+        if retcode != 0:
+            return [file_path, retcode]
+        else:
+            return
+
+    if low.endswith('jpeg') or low.endswith('jpg'):
+        file_extension_specific_flags.append('-AllDates={}'.format(date_string).encode('utf-8'))
+    elif low.endswith('png'):
+        file_extension_specific_flags.append('-{}={}'.format(png_tag, date_string_with_ca_timezone).encode('utf-8'))
+    elif low.endswith('tif'):
+        date_object = datetime.datetime.strptime(date_string, DATE_FORMAT_STRING)
+        file_extension_specific_flags += [
+            '-{}={}'.format(tif_date_tag, datetime.datetime.strftime(date_object, TIF_DATE_FORMAT_STRING)).encode('utf-8'),
+            '-{}={}-07:00'.format(tif_time_tag, datetime.datetime.strftime(date_object, TIF_TIME_FORMAT_STRING)).encode('utf-8')        
+        ]
+    elif low.endswith('gif'):
+        print(f"GIF no-op!!! {file_path}") # can't figure out if apple reads EXIF from a GIF. Going to manually edit the few gifs I have
+        return
+    else:
+        assert(False), row[0]
     with exiftool.ExifTool() as et:
-        exif_args = [f"'-{tag}={row[1]}'".encode('utf-8') for tag in mov_tags]
-        et.execute(
-            '-overwrite_original'.encode('utf-8'),
-            '-{}={}'.format(png_tag, date_string).encode('utf-8'),
-            '-IPTC:Keywords=guessed_date'.encode('utf-8'),
-            file_path.encode('utf-8')
+        GUESSED_DATE = 'guessed_date'
+        ret = et.execute(
+            *(['-overwrite_original'.encode('utf-8')] +
+            file_extension_specific_flags +
+            [f"-IPTC:Keywords={GUESSED_DATE}".encode('utf-8'), f"-XMP:Subject={GUESSED_DATE}".encode('utf-8'),
+            file_path.encode('utf-8')])
         )
+        print(ret)
+        if b'error' in ret:
+            return [file_path, ret]
 
 """
 Anecdotally, it looks like Photos treats the date metadata of different types distinctly.

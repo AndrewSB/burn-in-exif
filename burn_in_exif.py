@@ -5,7 +5,7 @@ import shutil
 import os
 from datetime import date
 from multiprocessing import Pool
-from exif import batchExif, get_exif_create_date, best_guess_date, write_date, DATE_FORMAT_STRING, fallback_write_date_mov, fallback_write_date_xmp
+from exif import batchExif, get_exif_create_date, best_guess_date, write_date, DATE_FORMAT_STRING
 from common import getListOfFiles
 
 parser = ArgumentParser(description='🔥 in that metadata', epilog='so that metadata can\'t 🔥 you') # how poetic. can you tell i've never written a Python CLI before?
@@ -22,9 +22,7 @@ process_dateless_parser.add_argument('--output-csv', type=str, default='best_gue
 
 write_dates_parser = subparsers.add_parser('write_dates', help='Take a CSV of (file_path, timestamp) and write to those file\'s metadata')
 write_dates_parser.add_argument('csv', type=str, help='CSV of (file_path, timestamp)')
-
-write_dates_non_jpeg_parser = subparsers.add_parser('write_dates_non_jpeg', help='Take a CSV of (file_path, timestamp) and write to those file\'s metadata, after filtering out the jpeg files. This was required because my first attempt (`exiftool -AllDates=`) only worked correctly for the JPEGs')
-write_dates_non_jpeg_parser.add_argument('csv', type=str, help='CSV of (file_path, timestamp)')
+write_dates_parser.add_argument('--failure_csv', type=str, default='failures.csv', help='CSV to write list of failures to')
 
 sort_csv_parser = subparsers.add_parser('sort_csv', help='Takes a CSV with one column per line and writes out a version with rows sorted alphabetically')
 sort_csv_parser.add_argument('csv', type=str, help='CSV to sort')
@@ -72,23 +70,11 @@ elif args.command == 'write_dates':
     with open(args.csv, 'r') as input_csv:
         rows = list(csv.reader(input_csv))
         print(f"preparing to write to {len(rows)} files")
-        with Pool(processes=20) as pool:
-            pool.map(write_date, rows)
+        with Pool(processes=9) as pool:
+            failures = filter(lambda x: x is not None, pool.map(write_date, rows))
+            with open(args.failure_csv, 'w') as failure_csv:
+                csv.writer(failure_csv).writerows(failures)
 
-elif args.command == 'write_dates_non_jpeg':
-    with open(args.csv, 'r') as input_csv:
-        rows = list(csv.reader(input_csv))
-        for row in filter(lambda x: not (x[0].lower().endswith('jpg') or x[0].lower().endswith('jpeg') or x[0].lower().endswith('tif')), rows):
-            known = ['gif', 'mp4', 'mov', 'png']
-            assert(any(map(lambda x: row[0].lower().endswith(x), known)))
-            if row[0].lower().endswith('gif'):
-                fallback_write_date_xmp(row)
-            elif row[0].lower().endswith('mp4') or row[0].lower().endswith('mov'):
-                fallback_write_date_mov(row)
-            elif row[0].lower().endswith('png'):
-                fallback_write_date_xmp(row)
-            else:
-                AssertionError('wut')
 
 elif args.command == 'sort_csv':
     with open(args.csv, 'r') as input_csv:
